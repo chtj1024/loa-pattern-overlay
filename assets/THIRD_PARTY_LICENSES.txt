@@ -1,0 +1,30 @@
+이 프로그램은 아래 오픈소스 소프트웨어를 사용합니다.
+각 라이선스 원문은 표시된 주소에서 확인할 수 있습니다.
+
+------------------------------------------------------------
+Qt for Python (PySide6 / Shiboken6)  - LGPL v3
+  https://www.qt.io/qt-for-python
+  https://www.gnu.org/licenses/lgpl-3.0.html
+  이 배포판은 Qt 라이브러리를 수정하지 않고 _internal 폴더에 별도 파일(DLL)로
+  포함합니다. 사용자는 해당 파일을 호환되는 다른 버전으로 교체할 수 있습니다.
+  Qt 소스 코드: https://download.qt.io/official_releases/
+
+Python  - PSF License
+  https://docs.python.org/3/license.html
+
+mss  - MIT License
+  https://github.com/BoboTiG/python-mss
+
+NumPy  - BSD 3-Clause License
+  https://numpy.org/doc/stable/license.html
+
+Pillow  - MIT-CMU License
+  https://github.com/python-pillow/Pillow/blob/main/LICENSE
+
+PyWinRT (winrt-runtime, winrt-Windows.*)  - MIT License
+  https://github.com/pywinrt/pywinrt
+
+PyInstaller (부트로더)  - GPL v2 + 배포 예외 조항
+  https://github.com/pyinstaller/pyinstaller/blob/develop/COPYING.txt
+  (예외 조항에 따라 이 프로그램과 함께 제한 없이 배포 가능)
+------------------------------------------------------------
