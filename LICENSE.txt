@@ -16,8 +16,9 @@ Copyright (c) 2026 로아 패턴 오버레이 제작자. All rights reserved.
 
 [책임의 한계]
   - 이 소프트웨어는 "있는 그대로" 제공되며, 어떠한 보증도 하지 않습니다.
-  - 이 소프트웨어는 게임사가 공식 허용한 프로그램이 아니며, 사용으로 인해 발생하는
-    계정 제재 등 모든 결과의 책임은 사용자 본인에게 있습니다.
+  - 이 소프트웨어는 게임사로부터 사용 허가를 받지 않았습니다. 게임사 고객센터는
+    사용 이후 운영정책 위반이 확인되면 계정에 불이익이 발생할 수 있다고 안내했습니다.
+    사용으로 인해 발생하는 계정 제재 등 모든 결과의 책임은 사용자 본인에게 있습니다.
   - 공식 배포처 이외의 경로로 받았거나 제3자가 수정한 파일은 제작자가 만든 것이 아니며,
     제작자는 이에 대해 어떠한 책임도 지지 않습니다.
 
@@ -29,6 +30,7 @@ English summary
 All rights reserved. You may download and use the unmodified official release for
 personal use, edit your own pattern/config files, and view the source code.
 Modification, redistribution, and commercial use are prohibited without prior written
-permission. Provided "AS IS" without warranty of any kind; the author is not liable for
+permission. This software is NOT authorized by the game publisher; using it may result in
+account penalties. Provided "AS IS" without warranty of any kind; the author is not liable for
 any damages, including in-game account penalties, or for any modified/unofficial copies.
 Bundled open-source components remain under their own licenses.

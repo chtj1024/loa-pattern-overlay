@@ -33,7 +33,8 @@ from patterns import (GUIDE_TEXT, all_boss_names, dir_signature, empty_data, fin
 _MSS = getattr(mss, "MSS", None) or mss.mss
 
 APP_NAME = "로아 패턴 오버레이"
-VERSION = "1.1.0"
+VERSION = "1.1.1"
+NOTICE_VERSION = 2  # 첫 실행 안내 문구 버전 (문구를 바꾸면 올림)
 
 # 프로그램 폴더: exe로 묶였을 땐 exe가 있는 폴더, 아니면 이 파일이 있는 폴더 (업데이트 시 통째로 교체)
 BASE = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) \
@@ -158,7 +159,7 @@ DEFAULT_CONFIG = {
     "regions_base": [1920, 1080],
     "regions": {"name": [660, 30, 600, 26], "bars": [1040, 62, 250, 26],
                 "title": [20, 44, 260, 28], "gate": [10, 95, 280, 72]},
-    "accepted_notice": False,
+    "accepted_notice": 0,  # 동의한 안내 문구 버전 (NOTICE_VERSION 참고)
     "interval_ms": 250,
     "name_match_threshold": 0.6,
     "lost_timeout_s": 4,
@@ -751,6 +752,9 @@ class App:
             f"{APP_NAME} v{VERSION}\n\n"
             "화면의 보스 이름과 남은 줄 수를 읽어 미리 적어둔 패턴을 띄워주는 도구입니다.\n"
             "게임 메모리나 입력은 건드리지 않습니다.\n\n"
+            "⚠️ 게임사로부터 사용 허가를 받지 않은 프로그램입니다. 게임사 고객센터는 사용 이후 "
+            "운영정책 위반이 확인되면 계정에 불이익이 발생할 수 있다고 안내했습니다. "
+            "사용에 따른 책임은 사용자 본인에게 있습니다.\n\n"
             f"프로그램 폴더: {BASE}\n"
             f"데이터 폴더(설정·패턴): {DATA_DIR}\n\n"
             "업데이트할 땐 새 버전을 풀고 예전 프로그램 폴더만 지우면 됩니다.\n"
@@ -874,16 +878,24 @@ def main():
 
     startup_msgs = prepare_patterns_dir()  # 예전 버전 설정을 옮겨 올 수 있으므로 설정 읽기 전에
     cfg = load_config()
-    if not cfg.get("accepted_notice"):
+    # 안내 문구가 바뀌면 NOTICE_VERSION을 올려서, 예전 문구에 동의한 사용자도 다시 보게 함
+    # (v1.1.0 이하는 accepted_notice=True 로 저장 → 1로 취급)
+    if int(cfg.get("accepted_notice") or 0) < NOTICE_VERSION:
         answer = QMessageBox.question(
             None, APP_NAME,
-            "이 프로그램은 화면을 캡처해 글자만 읽으며, 게임 메모리·입력은 건드리지 않습니다.\n"
-            "그러나 게임사가 공식 허용한 프로그램이 아니며, 사용에 따른 책임은 사용자 본인에게 있습니다.\n\n"
-            "동의하고 계속할까요?",
+            "⚠️ 이 프로그램은 게임사(스마일게이트)로부터 사용 허가를 받지 않았습니다.\n\n"
+            "제작자가 로스트아크 고객센터에 문의한 결과, 이 프로그램이 게임에 어떤 영향을 주는지 "
+            "명확하지 않아 허용 여부를 안내하기 어렵고, 사용 이후 운영정책 위반이 확인되면 "
+            "계정에 불이익이 발생할 수 있다는 답변을 받았습니다.\n\n"
+            "운영정책상 불법 프로그램으로 판단되면 1차부터 영구 이용 정지 대상입니다.\n"
+            "(이 프로그램은 화면을 캡처해 글자만 읽으며 게임 메모리·입력은 건드리지 않지만, "
+            "이것이 제재받지 않는다는 보장은 아닙니다)\n\n"
+            "제재 등 사용으로 인한 모든 결과의 책임은 사용자 본인에게 있습니다.\n"
+            "이 내용을 이해했고, 본인 책임으로 사용하시겠습니까?",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if answer != QMessageBox.Yes:
             return
-        cfg["accepted_notice"] = True
+        cfg["accepted_notice"] = NOTICE_VERSION
         write_json(CONFIG_PATH, cfg)
 
     app = App(qapp, cfg, startup_msgs, test_image=args.test, debug=args.debug)  # noqa: F841
