@@ -27,13 +27,13 @@ from PySide6.QtGui import (QAction, QColor, QFont, QFontMetrics, QIcon, QImage, 
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon, QWidget
 
 from ocr import Ocr
-from patterns import (GUIDE_TEXT, all_boss_names, dir_signature, empty_data, find_patterns,
-                      load_dir, pattern_window, prep_lines)
+from patterns import (GUIDE_TEXT, all_boss_names, bar_patterns, dir_signature, empty_data,
+                      find_hidden_hp_patterns, find_patterns, load_dir, pattern_window, prep_lines)
 
 _MSS = getattr(mss, "MSS", None) or mss.mss
 
 APP_NAME = "로아 패턴 오버레이"
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 NOTICE_VERSION = 2  # 첫 실행 안내 문구 버전 (문구를 바꾸면 올림)
 
 # 프로그램 폴더: exe로 묶였을 땐 exe가 있는 폴더, 아니면 이 파일이 있는 폴더 (업데이트 시 통째로 교체)
@@ -148,8 +148,9 @@ def prepare_patterns_dir():
             log.info("처음 패턴 복사: %s", copied)
         msgs.append(f"패턴 폴더: {PATTERNS_DIR}")
     guide = PATTERNS_DIR / "_작성법.txt"
-    if not guide.exists():
-        guide.write_text("// 이 파일은 읽지 않습니다 (이름이 _ 로 시작)\n" + GUIDE_TEXT, encoding="utf-8")
+    guide_text = "// 이 파일은 읽지 않습니다 (이름이 _ 로 시작)\n" + GUIDE_TEXT
+    if not guide.exists() or guide.read_text(encoding="utf-8-sig") != guide_text:
+        guide.write_text(guide_text, encoding="utf-8")
     return msgs
 
 
@@ -329,6 +330,15 @@ class OcrWorker(QThread):
             img = img.resize((bw, bh), Image.LANCZOS)
         return img
 
+    def _grab_hpbar(self, sct):
+        """피통 막대 안쪽 띠. 보스 이름 영역 바로 아래(같은 폭)라서 이름 영역에서 계산."""
+        x, y, w, h = self._regions["name"]
+        k = h / 26  # 기준 이름 영역 높이 26px
+        y, h = y + int(round(36 * k)), max(4, int(round(14 * k)))
+        if self.test_image is not None:
+            return self.test_image.crop((x, y, x + w, y + h))
+        return grab_region(sct, (x, y, w, h))
+
     def run(self):
         try:
             ocr = Ocr()
@@ -339,6 +349,7 @@ class OcrWorker(QThread):
         sct = _MSS()
         boss, bars, pending = None, None, None
         title, gate, gate_pending = None, None, None
+        hidden, hidden_streak = False, 0
         last_seen, last_name_check = 0.0, 0.0
         title_seen, last_title_check = 0.0, 0.0
         last_screen_check, screen = 0.0, None
@@ -386,7 +397,13 @@ class OcrWorker(QThread):
                     elif boss and t0 - last_seen > cfg["lost_timeout_s"]:
                         boss, bars, pending = None, None, None
 
-                if boss is not None:
+                # 피통이 ???(회색)인지: 글자 대신 색으로 판단, 2번 연속 같은 결과일 때 전환
+                now_hidden = ocr.is_hidden_hp_bar(self._grab_hpbar(sct))
+                hidden_streak = hidden_streak + 1 if now_hidden != hidden else 0
+                if hidden_streak >= 2:
+                    hidden, hidden_streak = now_hidden, 0
+
+                if boss is not None and not hidden:
                     val, raw_bars = ocr.read_bars(self._grab(sct, "bars"))
                     # 같은 값이 2번 연속 읽혀야 반영 (OCR 오인식 방지)
                     if val is not None and val != bars:
@@ -397,11 +414,12 @@ class OcrWorker(QThread):
                 else:
                     raw_bars = []
                 self.state.emit({"boss": boss, "bars": bars, "title": title, "gate": gate,
-                                 "raw_name": raw_name, "raw_bars": raw_bars,
+                                 "hidden": hidden, "raw_name": raw_name, "raw_bars": raw_bars,
                                  "raw_title": raw_title})
             except Exception as e:  # noqa: BLE001  (화면 잠금 등 일시적 캡처 실패)
                 self.state.emit({"boss": boss, "bars": bars, "title": title, "gate": gate,
-                                 "raw_name": f"오류: {e}", "raw_bars": [], "raw_title": None})
+                                 "hidden": hidden, "raw_name": f"오류: {e}", "raw_bars": [],
+                                 "raw_title": None})
             dt = time.monotonic() - t0
             time.sleep(max(0.02, cfg["interval_ms"] / 1000 - dt))
 
@@ -522,13 +540,14 @@ class Overlay(QWidget):
                 for i, seg in enumerate(self._wrap(text, font, max_w - bullet_w)):
                     lines.append((font, color, ([(0, "•")] if i == 0 else []) + [(bullet_w, seg)]))
                 continue
+            label = f"{bar:g}%" if kind == "pct" else f"x{bar}"
             if kind == "next":
                 font, color, marker = bold, o["color_next"], "▶"
             else:
                 font, marker = normal, ""
                 color = o["color_prev"] if kind == "prev" else o["color_after"]
             for i, seg in enumerate(self._wrap(text, font, max_w - text_x)):
-                cells = [(0, marker), (marker_w, f"x{bar}")] if i == 0 else []
+                cells = [(0, marker), (marker_w, label)] if i == 0 else []
                 lines.append((font, color, cells + [(text_x, seg)]))
         return lines
 
@@ -796,11 +815,17 @@ class App:
         title, gate = st.get("title"), st.get("gate")
         if self.debug and (st.get("raw_name") is not None or st.get("raw_title") is not None):
             log.debug(f"[OCR] 제목={st.get('raw_title')!r} 이름={st.get('raw_name')!r} "
-                      f"줄={st.get('raw_bars')} → {title} {gate}관문 / {boss} x{bars}")
+                      f"줄={st.get('raw_bars')} ???={st.get('hidden')} → {title} {gate}관문 / {boss} x{bars}")
         rows, status = [], ""
-        if boss:
+        hidden_boss, hidden_pats = (find_hidden_hp_patterns(self.data, boss, title, gate)
+                                    if st.get("hidden") else (None, []))
+        if hidden_pats:
+            # 피통이 ??? → 체력을 알 수 없으므로 % 패턴 전체를 강조 없이 표시
+            status = f"{hidden_boss} · 체력 비공개"
+            rows = [("pct", p["pct"], p["text"]) for p in hidden_pats]
+        elif boss:
             status = f"{boss} · x{bars}" if bars is not None else f"{boss} · 줄 수 인식 중..."
-            pats = find_patterns(self.data, boss, title, gate)
+            pats = bar_patterns(find_patterns(self.data, boss, title, gate))
             if bars is not None and pats:
                 rows = [(k, p["bar"], p["text"]) for k, p in pattern_window(pats, bars)]
         elif title:

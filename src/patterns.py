@@ -16,8 +16,11 @@
     420  부메랑던짐 - 부메랑 4갈래
          * 파란 구슬 : 출혈 디버프 없애줌
     350  350줄 무덤 : ...
+    75%  체력이 ??? 로 가려지는 구간의 패턴
 
   - 숫자로 시작하는 줄 = 새 패턴 (그 숫자 = 남은 줄 수)
+  - 숫자% 로 시작하는 줄 = 피통이 ??? (회색)일 때 보여줄 패턴
+    (체력을 알 수 없으므로 진행 중 강조 없이 % 패턴 전체를 보여줌)
   - 들여쓴 줄 = 윗줄 텍스트에 이어서 줄바꿈
   - // 로 시작하는 줄 = 메모(무시)
   - '# 제목'이 없는 파일의 보스는 어느 레이드에서든 사용
@@ -30,6 +33,7 @@ from pathlib import Path
 GATE_RE = re.compile(r"^==\s*(\d+)\s*관문\s*==$")
 SECTION_RE = re.compile(r"^\[(.+)\]$")
 PATTERN_RE = re.compile(r"^[xX]?(\d+)(?:\s+(.*))?$")
+PCT_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*%(?:\s+(.*))?$")
 PREP = "정비소"
 
 GUIDE_TEXT = __doc__.split("형식 (메모장으로 편집):", 1)[1].rstrip() + "\n"
@@ -96,8 +100,11 @@ def parse_file(path: Path, data, warnings):
                 prep.append(s)
         else:
             m = None if indented else PATTERN_RE.match(s)
+            mp = None if indented or m else PCT_RE.match(s)
             if m:
                 pats.append({"bar": int(m.group(1)), "text": (m.group(2) or "").strip()})
+            elif mp:
+                pats.append({"pct": float(mp.group(1)), "text": (mp.group(2) or "").strip()})
             elif pats:
                 pats[-1]["text"] += ("\n" if pats[-1]["text"] else "") + s
             else:
@@ -114,9 +121,9 @@ def load_dir(folder: Path):
     for gates in data["raids"].values():
         for g in gates.values():
             for pats in g["bosses"].values():
-                pats.sort(key=lambda p: -p["bar"])
+                pats.sort(key=_pattern_order)
     for pats in data["bosses"].values():
-        pats.sort(key=lambda p: -p["bar"])
+        pats.sort(key=_pattern_order)
     return data, warnings
 
 
@@ -160,6 +167,35 @@ def prep_lines(data, title, gate):
     if gate and gate in gates:
         lines += gates[gate]["prep"]
     return lines
+
+
+def _pattern_order(p):
+    """줄 수 패턴 먼저(줄 수 내림차순), 그 다음 % 패턴(% 내림차순)."""
+    return (0, -p["bar"]) if "bar" in p else (1, -p["pct"])
+
+
+def bar_patterns(patterns):
+    return [p for p in patterns or [] if "bar" in p]
+
+
+def pct_patterns(patterns):
+    return [p for p in patterns or [] if "pct" in p]
+
+
+def find_hidden_hp_patterns(data, boss, title, gate):
+    """피통이 ???일 때 쓸 (보스 이름, % 패턴 목록).
+    이름을 읽었으면 그 보스, 못 읽었으면 현재 레이드/관문에서 % 패턴이 있는 보스."""
+    if boss:
+        pats = pct_patterns(find_patterns(data, boss, title, gate))
+        if pats:
+            return boss, pats
+    gates = data["raids"].get(title, {})
+    order = ([gates[gate]] if gate in gates else []) + list(gates.values())
+    for g in order:
+        for name, pats in g["bosses"].items():
+            if pct_patterns(pats):
+                return name, pct_patterns(pats)
+    return boss, []
 
 
 def pattern_window(patterns, bars, before=2, after=2):

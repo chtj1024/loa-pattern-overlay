@@ -119,6 +119,19 @@ class Ocr:
             checks += 1
         return checks + 1
 
+    @staticmethod
+    def is_hidden_hp_bar(img: Image.Image) -> bool:
+        """피통이 ??? 상태(체력 비공개)인지. 이때 막대는 색 없이 고른 회색이다.
+        (일반 피통은 빨강/주황/초록 등 색이 진하고, 게임 화면은 밝기가 고르지 않음)"""
+        a = np.asarray(img.convert("RGB")).astype(np.int16)
+        if a.size == 0:
+            return False
+        saturation = float((a.max(axis=2) - a.min(axis=2)).mean())
+        lum = a.mean(axis=2)
+        chunks = np.array_split(lum.mean(axis=0), 10)  # 가로 10구간 평균 밝기
+        evenness = float(np.std([c.mean() for c in chunks]))
+        return saturation < 12 and evenness < 10 and 35 < float(lum.mean()) < 160
+
     def read_bars(self, img: Image.Image):
         """줄 수 영역을 여러 방식으로 읽고 다수결. (줄수|None, 원문들)"""
         votes, raws = [], []
